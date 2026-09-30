@@ -19,18 +19,21 @@ export type Database = {
           campus: string
           id: string
           name: string
+          sort_order: number | null
           university_id: string
         }
         Insert: {
           campus?: string
           id?: string
           name: string
+          sort_order?: number | null
           university_id: string
         }
         Update: {
           campus?: string
           id?: string
           name?: string
+          sort_order?: number | null
           university_id?: string
         }
         Relationships: [
@@ -108,20 +111,29 @@ export type Database = {
       classrooms: {
         Row: {
           building_id: string
+          floor_label: string | null
+          floor_order: number | null
           id: string
           name: string
+          sort_order: number | null
           university_id: string
         }
         Insert: {
           building_id: string
+          floor_label?: string | null
+          floor_order?: number | null
           id?: string
           name: string
+          sort_order?: number | null
           university_id: string
         }
         Update: {
           building_id?: string
+          floor_label?: string | null
+          floor_order?: number | null
           id?: string
           name?: string
+          sort_order?: number | null
           university_id?: string
         }
         Relationships: [
