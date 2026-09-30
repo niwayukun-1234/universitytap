@@ -14,15 +14,16 @@ export function AuthShell({ title, children, redirectIfLoggedIn = true }: { titl
   }, [redirectIfLoggedIn, user, loading, navigate]);
 
   return (
-    <div className="flex min-h-dvh flex-col items-center px-5 pb-10 pt-14">
+    // スマホの1画面に収まるよう余白は控えめにする
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-6">
       <Link to="/" className="text-center">
-        <BrandWordmark className="text-5xl sm:text-6xl" />
+        <BrandWordmark className="text-4xl sm:text-5xl" />
       </Link>
-      <p className="mt-3 text-center text-lg font-bold text-muted-foreground">大学生専用のキャンパス内位置情報共有</p>
-      <ConnectedPill className="mt-4" />
-      <div className="ut-card mt-6 w-full max-w-md p-6">
-        <h1 className="text-3xl font-extrabold">{title}</h1>
-        <div className="mt-5">{children}</div>
+      <p className="mt-1.5 text-center text-sm font-bold text-muted-foreground sm:text-base">大学生専用のキャンパス内位置情報共有</p>
+      <ConnectedPill className="mt-3 px-3 py-1 text-xs" />
+      <div className="ut-card mt-4 w-full max-w-md p-5">
+        <h1 className="text-2xl font-extrabold">{title}</h1>
+        <div className="mt-3">{children}</div>
       </div>
     </div>
   );
@@ -31,7 +32,7 @@ export function AuthShell({ title, children, redirectIfLoggedIn = true }: { titl
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-bold text-muted-foreground">{label}</span>
+      <span className="mb-1 block text-sm font-bold text-muted-foreground">{label}</span>
       {children}
     </label>
   );

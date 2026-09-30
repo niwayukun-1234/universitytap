@@ -54,7 +54,8 @@ function AppLayout() {
     return <div className="flex min-h-dvh items-center justify-center text-muted-foreground">読み込み中...</div>;
   }
 
-  if (!user.email_confirmed_at) return <EmailGate />;
+  // ゲスト（匿名ログイン）はメール確認なしで使える
+  if (!user.email_confirmed_at && !user.is_anonymous) return <EmailGate />;
 
   const isChatRoom = /^\/app\/chat\/.+/.test(location.pathname);
 

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthShell, Field } from "@/components/auth-shell";
-import { getGuestLoginToken } from "@/lib/guest.functions";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { next?: string } => ({ next: typeof s.next === "string" ? s.next : undefined }),
@@ -15,40 +14,43 @@ function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"login" | "guest" | null>(null);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message === "Invalid login credentials" ? "メールアドレスまたはパスワードが違います" : error.message);
-      return;
-    }
+  const goNext = () => {
     // 招待リンクなど、ログイン前に開こうとしていたページへ戻す
     if (next && next.startsWith("/")) window.location.href = next;
     else navigate({ to: "/app/location" });
   };
 
-  const onGuest = async () => {
-    setBusy(true);
-    try {
-      const { tokenHash } = await getGuestLoginToken();
-      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
-      if (error) throw error;
-      if (next && next.startsWith("/")) window.location.href = next;
-      else navigate({ to: "/app/location" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "ゲストログインに失敗しました");
-    } finally {
-      setBusy(false);
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy("login");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setBusy(null);
+    if (error) {
+      toast.error(error.message === "Invalid login credentials" ? "メールアドレスまたはパスワードが違います" : error.message);
+      return;
     }
+    goNext();
+  };
+
+  // ゲストは匿名ログイン（1人ずつ別アカウントになる）
+  const onGuest = async () => {
+    setBusy("guest");
+    const { error } = await supabase.auth.signInAnonymously({
+      options: { data: { full_name: "ゲスト", university_id: "doshisha" } },
+    });
+    setBusy(null);
+    if (error) {
+      toast.error(/anonymous/i.test(error.message) ? "ゲストログインは現在準備中です" : error.message);
+      return;
+    }
+    goNext();
   };
 
   return (
     <AuthShell title="ログイン" redirectIfLoggedIn={!next}>
-      <form onSubmit={onSubmit} className="space-y-5">
+      <form onSubmit={onSubmit} className="space-y-3">
         <Field label="メールアドレス">
           <input className="ut-input" type="email" autoComplete="email" required placeholder="student@university.ac.jp" value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
@@ -58,15 +60,17 @@ function LoginPage() {
         <div className="text-right">
           <Link to="/forgot-password" className="text-sm font-bold text-primary">パスワードを忘れた場合</Link>
         </div>
-        <button type="submit" disabled={busy} className="ut-btn-primary w-full py-4 text-lg">
-          {busy ? "ログイン中..." : "ログイン"}
+        <button type="submit" disabled={busy !== null} className="ut-btn-primary w-full py-3.5 text-lg">
+          {busy === "login" ? "ログイン中..." : "ログイン"}
         </button>
-        <Link to="/signup" search={{ next }} className="ut-btn-outline w-full justify-start py-4 text-lg text-primary">
-          新規登録
-        </Link>
-        <button type="button" disabled={busy} onClick={onGuest} className="ut-btn-outline w-full py-4 text-lg">
-          ゲストとして試す
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          <Link to="/signup" search={{ next }} className="ut-btn-outline px-2 py-3 text-primary">
+            新規登録
+          </Link>
+          <button type="button" disabled={busy !== null} onClick={onGuest} className="ut-btn-outline px-2 py-3">
+            {busy === "guest" ? "準備中..." : "ゲストで試す"}
+          </button>
+        </div>
       </form>
     </AuthShell>
   );
