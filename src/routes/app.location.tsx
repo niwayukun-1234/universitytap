@@ -236,7 +236,8 @@ function LocationPage() {
             <div className="max-h-96 space-y-2.5 overflow-y-auto rounded-3xl border border-border p-2.5">
               {floorRooms.map((c) => (
                 <button key={c.id} type="button" onClick={() => setTarget(c)} className={cn("ut-list-btn text-lg", target?.id === c.id && "ut-soft")}>
-                  {roomLabel(c.name, building.name)}
+                  {/* 同名の部屋を区別するための「（2階）」は、階を選んだ後の一覧では省く */}
+                  {roomLabel(c.name, building.name).replace(/（[^（）]*階）$/, "")}
                   <LogIn className="h-5 w-5 text-primary" />
                 </button>
               ))}
