@@ -34,7 +34,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = async (uid: string) => {
     const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
-    setProfile((data as Profile) ?? null);
+    if (data) return setProfile(data as Profile);
+    // ゲスト（匿名ログイン）などでプロフィールが自動作成されなかった場合はここで作る
+    const { data: u } = await supabase.auth.getUser();
+    const meta = (u.user?.user_metadata ?? {}) as { full_name?: string; university_id?: string };
+    const { data: created } = await supabase
+      .from("profiles")
+      .insert({
+        id: uid,
+        full_name: meta.full_name || "ゲスト",
+        university_id: meta.university_id || "doshisha",
+        email: u.user?.email ?? null,
+      })
+      .select("*")
+      .maybeSingle();
+    if (created) return setProfile(created as Profile);
+    // 同時にデータベース側でも作られていた場合（重複エラー）は取り直す
+    const { data: again } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+    setProfile((again as Profile) ?? null);
   };
 
   useEffect(() => {
