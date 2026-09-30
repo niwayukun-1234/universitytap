@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthShell, Field } from "@/components/auth-shell";
+import { getGuestLoginToken } from "@/lib/guest.functions";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { next?: string } => ({ next: typeof s.next === "string" ? s.next : undefined }),
@@ -30,6 +31,21 @@ function LoginPage() {
     else navigate({ to: "/app/location" });
   };
 
+  const onGuest = async () => {
+    setBusy(true);
+    try {
+      const { tokenHash } = await getGuestLoginToken();
+      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
+      if (error) throw error;
+      if (next && next.startsWith("/")) window.location.href = next;
+      else navigate({ to: "/app/location" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ゲストログインに失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <AuthShell title="ログイン" redirectIfLoggedIn={!next}>
       <form onSubmit={onSubmit} className="space-y-5">
@@ -48,6 +64,9 @@ function LoginPage() {
         <Link to="/signup" search={{ next }} className="ut-btn-outline w-full justify-start py-4 text-lg text-primary">
           新規登録
         </Link>
+        <button type="button" disabled={busy} onClick={onGuest} className="ut-btn-outline w-full py-4 text-lg">
+          ゲストとして試す
+        </button>
       </form>
     </AuthShell>
   );
