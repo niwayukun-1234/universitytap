@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      _ut_rooms_stage: {
+        Row: {
+          building: string | null
+          building_order: number | null
+          campus: string | null
+          floor_label: string | null
+          floor_order: number | null
+          name: string | null
+          room_order: number | null
+        }
+        Insert: {
+          building?: string | null
+          building_order?: number | null
+          campus?: string | null
+          floor_label?: string | null
+          floor_order?: number | null
+          name?: string | null
+          room_order?: number | null
+        }
+        Update: {
+          building?: string | null
+          building_order?: number | null
+          campus?: string | null
+          floor_label?: string | null
+          floor_order?: number | null
+          name?: string | null
+          room_order?: number | null
+        }
+        Relationships: []
+      }
       buildings: {
         Row: {
           campus: string

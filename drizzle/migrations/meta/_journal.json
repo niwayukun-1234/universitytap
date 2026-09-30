@@ -15,6 +15,13 @@
       "when": 1790790057719,
       "tag": "0001_doshisha_classroom_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790790305943,
+      "tag": "0002_ut_rooms_stage",
+      "breakpoints": true
     }
   ]
 }
