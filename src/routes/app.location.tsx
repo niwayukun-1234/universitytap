@@ -11,8 +11,24 @@ export const Route = createFileRoute("/app/location")({
   component: LocationPage,
 });
 
-type Building = { id: string; name: string; campus: string };
-type Classroom = { id: string; name: string; building_id: string };
+type Building = { id: string; name: string; campus: string; sort_order?: number | null };
+type Classroom = {
+  id: string;
+  name: string;
+  building_id: string;
+  floor_label?: string | null;
+  floor_order?: number | null;
+  sort_order?: number | null;
+};
+
+// 教室データに階の情報があればそれを使い、無ければ教室名から推定する
+const roomFloor = (c: Classroom, buildingName: string): { order: number; label: string } =>
+  c.floor_order != null
+    ? { order: c.floor_order, label: c.floor_label || floorLabel(c.floor_order) }
+    : { order: parseFloor(c.name, buildingName), label: floorLabel(parseFloor(c.name, buildingName)) };
+
+const bySort = <T extends { name: string; sort_order?: number | null }>(a: T, b: T) =>
+  (a.sort_order ?? 1e9) - (b.sort_order ?? 1e9) || a.name.localeCompare(b.name, "ja");
 type RoomRef = { name: string; buildings: { name: string; campus: string } | null } | null;
 type Checkin = { id: string; created_at: string; left_at: string | null; is_active: boolean; memo: string | null; classrooms: RoomRef };
 
@@ -38,14 +54,12 @@ function LocationPage() {
 
   const load = async () => {
     const select = "id, created_at, left_at, is_active, memo, classrooms(name, buildings(name, campus))";
-    const [b, c, hist, hidden] = await Promise.all([
-      supabase.from("buildings").select("id,name,campus").eq("university_id", "doshisha").order("name"),
-      supabase.from("classrooms").select("id,name,building_id").eq("university_id", "doshisha").order("name"),
+    const [b, hist, hidden] = await Promise.all([
+      supabase.from("buildings").select("*").eq("university_id", "doshisha"),
       supabase.from("checkins").select(select).eq("user_id", user!.id).order("created_at", { ascending: false }).limit(20),
       supabase.from("friends").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("status", "accepted").eq("share_location", false),
     ]);
-    setBuildings((b.data as Building[]) ?? []);
-    setClassrooms((c.data as Classroom[]) ?? []);
+    setBuildings(((b.data as Building[]) ?? []).sort(bySort));
     const rows = (hist.data as unknown as Checkin[]) ?? [];
     setHistory(rows);
     setCurrent(rows.find((r) => r.is_active) ?? null);
@@ -55,6 +69,22 @@ function LocationPage() {
   useEffect(() => {
     if (user) load();
   }, [user]);
+
+  // 教室は数が多いので、選んだ館の分だけ読み込む
+  useEffect(() => {
+    if (!building) return setClassrooms([]);
+    let cancelled = false;
+    supabase
+      .from("classrooms")
+      .select("*")
+      .eq("building_id", building.id)
+      .then(({ data }) => {
+        if (!cancelled) setClassrooms(((data as Classroom[]) ?? []).sort(bySort));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [building]);
 
   useEffect(() => {
     if (!banner) return;
@@ -92,11 +122,16 @@ function LocationPage() {
 
   const campusBuildings = buildings.filter((b) => b.campus === campus);
   const buildingRooms = useMemo(() => (building ? classrooms.filter((c) => c.building_id === building.id) : []), [building, classrooms]);
-  const floors = useMemo(
-    () => (building ? Array.from(new Set(buildingRooms.map((c) => parseFloor(c.name, building.name)))).sort((a, b) => a - b) : []),
-    [building, buildingRooms],
-  );
-  const floorRooms = building && floor != null ? buildingRooms.filter((c) => parseFloor(c.name, building.name) === floor) : [];
+  const floors = useMemo(() => {
+    if (!building) return [];
+    const map = new Map<number, string>();
+    for (const c of buildingRooms) {
+      const f = roomFloor(c, building.name);
+      if (!map.has(f.order)) map.set(f.order, f.label);
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([order, label]) => ({ order, label }));
+  }, [building, buildingRooms]);
+  const floorRooms = building && floor != null ? buildingRooms.filter((c) => roomFloor(c, building.name).order === floor) : [];
   const past = history.filter((h) => !h.is_active).slice(0, 5);
   const cur = current ? placeText(current.classrooms) : null;
 
@@ -183,12 +218,12 @@ function LocationPage() {
             <div className="max-h-72 space-y-2.5 overflow-y-auto rounded-3xl border border-border p-2.5">
               {floors.map((f) => (
                 <button
-                  key={f}
+                  key={f.order}
                   type="button"
-                  onClick={() => setFloor(f)}
-                  className={cn("ut-list-btn text-lg", floor === f && "ut-soft")}
+                  onClick={() => setFloor(f.order)}
+                  className={cn("ut-list-btn text-lg", floor === f.order && "ut-soft")}
                 >
-                  {floorLabel(f)}
+                  {f.label}
                 </button>
               ))}
             </div>
