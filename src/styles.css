@@ -46,6 +46,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft-border: var(--brand-soft-border);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -62,26 +66,30 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --radius: 1rem;
+  --background: oklch(0.975 0.008 310);
+  --foreground: oklch(0.2 0.03 300);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
+  --card-foreground: oklch(0.2 0.03 300);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.55 0.18 265);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.96 0.02 265);
-  --secondary-foreground: oklch(0.25 0.05 265);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.93 0.05 265);
-  --accent-foreground: oklch(0.25 0.08 265);
+  --popover-foreground: oklch(0.2 0.03 300);
+  --primary: oklch(0.36 0.16 318);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.03 320);
+  --secondary-foreground: oklch(0.36 0.16 318);
+  --muted: oklch(0.965 0.006 290);
+  --muted-foreground: oklch(0.55 0.03 280);
+  --accent: oklch(0.95 0.035 320);
+  --accent-foreground: oklch(0.36 0.16 318);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --border: oklch(0.92 0.012 290);
+  --input: oklch(0.92 0.012 290);
+  --ring: oklch(0.6 0.12 318);
+  --success: oklch(0.52 0.13 150);
+  --success-soft: oklch(0.95 0.035 155);
+  --brand-soft: oklch(0.95 0.035 320);
+  --brand-soft-border: oklch(0.82 0.08 320);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -140,5 +148,56 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-image: linear-gradient(180deg, oklch(0.93 0.03 315) 0%, oklch(0.97 0.012 300) 38%, oklch(0.975 0.008 280) 100%);
+    background-attachment: fixed;
+    font-family: "Noto Sans JP", system-ui, -apple-system, "Hiragino Sans", sans-serif;
+  }
+}
+
+@layer components {
+  /* 白いカード（スクショの大きな角丸カード） */
+  .ut-card {
+    @apply rounded-[28px] bg-card p-5 shadow-[0_8px_30px_-12px_oklch(0.36_0.16_318/0.18)];
+  }
+
+  .ut-card-title {
+    @apply flex items-center gap-2 text-lg font-bold text-foreground;
+  }
+
+  .ut-eyebrow {
+    @apply text-sm font-semibold text-muted-foreground;
+  }
+
+  /* 紫のメインボタン */
+  .ut-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-[oklch(0.4_0.17_318)] to-[oklch(0.3_0.14_318)] px-5 py-3 font-bold text-primary-foreground shadow-[0_10px_24px_-10px_oklch(0.36_0.16_318/0.7)] transition active:scale-[0.98] disabled:opacity-60;
+  }
+
+  /* 白い枠線ボタン */
+  .ut-btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 font-bold text-foreground transition hover:bg-muted active:scale-[0.98] disabled:opacity-60;
+  }
+
+  /* 薄いピンク紫の選択状態 */
+  .ut-soft {
+    @apply border border-brand-soft-border bg-brand-soft text-primary;
+  }
+
+  .ut-input {
+    @apply w-full rounded-2xl border border-border bg-card px-4 py-3 text-base outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-4 focus:ring-primary/15;
+  }
+
+  .ut-list-btn {
+    @apply flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-3.5 text-left text-base transition hover:bg-muted;
   }
 }

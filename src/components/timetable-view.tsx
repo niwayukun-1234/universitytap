@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Plus, Trash2, Download } from "lucide-react";
+import { Calendar, CalendarPlus, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 
 type Schedule = {
@@ -48,7 +47,7 @@ const CATEGORIES = [
   { v: "other", l: "その他", c: "#8b5cf6" },
 ];
 
-export function TimetableView({ userId, editable }: { userId: string; editable: boolean }) {
+export function TimetableView({ userId, editable, heading }: { userId: string; editable: boolean; heading?: string }) {
   const [items, setItems] = useState<Schedule[]>([]);
   const [edit, setEdit] = useState<{ d: number; p: number; existing?: Schedule } | null>(null);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -81,61 +80,71 @@ export function TimetableView({ userId, editable }: { userId: string; editable: 
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" />時間割</span>
-          {editable && (
-            <Button size="sm" variant="outline" onClick={() => setSyncOpen(true)}>
-              <Download className="h-4 w-4 mr-1" />Googleカレンダー同期
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-2 sm:p-4">
-        <table className="w-full text-[10px] sm:text-xs border-separate border-spacing-0.5 table-fixed">
-          <thead>
-            <tr>
-              <th className="w-10 sm:w-12"></th>
-              {DAYS.map((d) => <th key={d} className="font-medium text-muted-foreground py-1">{d}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {PERIODS.map((p) => (
-              <tr key={p}>
-                <td className="text-center text-muted-foreground font-medium align-middle px-0">
-                  <div className="font-bold text-foreground text-xs">{p}</div>
-                  <div className="text-[8px] leading-none text-muted-foreground">{PERIOD_TIMES[p].split("-")[0]}</div>
-                </td>
-                {DAYS.map((_, d) => {
-                  const s = find(d, p);
-                  return (
-                    <td key={d} className="align-top p-0">
-                      <button
-                        onClick={() => editable && setEdit({ d, p, existing: s })}
-                        disabled={!editable && !s}
-                        className="w-full h-12 sm:h-14 rounded p-0.5 sm:p-1 text-left transition hover:opacity-80 disabled:opacity-100 overflow-hidden"
-                        style={{
-                          backgroundColor: s ? s.color + "30" : "var(--muted)",
-                          borderLeft: s ? `2px solid ${s.color}` : undefined,
-                        }}
+    <section className="ut-card px-3 py-4 sm:px-5">
+      {heading && (
+        <h2 className="ut-card-title mb-3 px-1 text-xl">
+          <Calendar className="h-6 w-6 text-primary" />
+          {heading}
+        </h2>
+      )}
+      {editable && (
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <button type="button" onClick={() => setSyncOpen(true)} className="ut-soft flex items-center justify-center gap-2 rounded-3xl bg-card px-3 py-3.5 font-bold">
+            <CalendarPlus className="h-5 w-5 shrink-0" />
+            カレンダーにエクスポート
+          </button>
+          <button type="button" onClick={() => exportTimetableImage(items)} className="ut-soft flex items-center justify-center gap-2 rounded-3xl bg-card px-3 py-3.5 font-bold">
+            <Download className="h-5 w-5 shrink-0" />
+            画像出力
+          </button>
+        </div>
+      )}
+      {/* 時限の列は細くして、月〜土を1画面に収める */}
+      <div className="grid grid-cols-[2.1rem_repeat(6,minmax(0,1fr))] gap-1 sm:grid-cols-[2.75rem_repeat(6,minmax(0,1fr))] sm:gap-1.5">
+        <div className="rounded-xl bg-brand-soft py-2 text-center text-[11px] font-bold text-primary sm:text-xs">時限</div>
+        {DAYS.map((d) => (
+          <div key={d} className="rounded-xl bg-brand-soft py-2 text-center text-sm font-bold text-primary">
+            {d}
+          </div>
+        ))}
+        {PERIODS.map((p) => (
+          <Fragment key={p}>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-1 leading-tight">
+              <span className="text-base font-extrabold">{p}</span>
+              <span className="text-[8px] text-muted-foreground sm:text-[9px]">{PERIOD_TIMES[p].split("-")[0]}</span>
+            </div>
+            {DAYS.map((_, d) => {
+              const s = find(d, p);
+              const cat = s ? CATEGORIES.find((c) => c.v === s.category) : undefined;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => editable && setEdit({ d, p, existing: s })}
+                  disabled={!editable}
+                  className="relative h-[4.5rem] overflow-hidden rounded-xl border bg-card p-1 text-left transition enabled:hover:bg-muted sm:h-20 sm:p-1.5"
+                  style={s ? { borderColor: s.color + "99", boxShadow: `inset 3px 0 0 ${s.color}` } : undefined}
+                >
+                  {s ? (
+                    <>
+                      <span
+                        className="inline-block max-w-full truncate rounded-full px-1.5 py-px text-[9px] font-bold sm:text-[10px]"
+                        style={{ backgroundColor: s.color + "22", color: s.color }}
                       >
-                        {s && (
-                          <>
-                            <div className="font-semibold truncate leading-tight" style={{ color: s.color }}>{s.title}</div>
-                            {s.location && <div className="text-[8px] sm:text-[9px] text-muted-foreground truncate leading-tight">{s.location}</div>}
-                          </>
-                        )}
-                        {!s && editable && <Plus className="h-3 w-3 text-muted-foreground mx-auto mt-2" />}
-                      </button>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
+                        {cat?.l ?? "予定"}
+                      </span>
+                      <div className="mt-0.5 line-clamp-2 break-all pl-0.5 text-[11px] font-bold leading-tight sm:text-xs">{s.title}</div>
+                      {s.location && <div className="truncate pl-0.5 text-[9px] text-muted-foreground">{s.location}</div>}
+                    </>
+                  ) : (
+                    <span className="block pt-1 text-center text-[10px] font-bold text-muted-foreground/80 sm:text-xs">未登録</span>
+                  )}
+                </button>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
 
       <EditDialog
         edit={edit}
@@ -145,8 +154,73 @@ export function TimetableView({ userId, editable }: { userId: string; editable: 
         onExport={exportToGoogle}
       />
       {editable && <GoogleSyncDialog open={syncOpen} onClose={() => setSyncOpen(false)} items={items} />}
-    </Card>
+    </section>
   );
+}
+
+/** 時間割を PNG 画像として保存する */
+function exportTimetableImage(items: Schedule[]) {
+  const colW = 150, headH = 56, rowH = 96, leftW = 104, pad = 32;
+  const W = pad * 2 + leftW + colW * DAYS.length;
+  const H = pad * 2 + 60 + headH + rowH * PERIODS.length;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return toast.error("画像を作成できませんでした");
+  ctx.scale(scale, scale);
+  const font = (w: number, size: number) => `${w} ${size}px "Noto Sans JP", sans-serif`;
+  const box = (x: number, y: number, w: number, h: number, r: number, color: string) => {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fillStyle = color;
+    ctx.fill();
+  };
+  const text = (t: string, x: number, y: number, f: string, color: string, align: CanvasTextAlign = "left") => {
+    ctx.font = f;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.fillText(t, x, y);
+  };
+
+  ctx.fillStyle = "#f6f2f9";
+  ctx.fillRect(0, 0, W, H);
+  text("時間割", pad, pad + 32, font(800, 30), "#4a0a63");
+  text("UniversityTap", W - pad, pad + 30, font(700, 16), "#8a7f99", "right");
+
+  const top = pad + 60;
+  const heads = [{ x: pad, w: leftW, label: "時限" }, ...DAYS.map((d, i) => ({ x: pad + leftW + colW * i, w: colW, label: d }))];
+  for (const h of heads) {
+    box(h.x + 3, top + 3, h.w - 6, headH - 6, 14, "#f5e6f7");
+    text(h.label, h.x + h.w / 2, top + headH / 2 + 6, font(700, 18), "#4a0a63", "center");
+  }
+
+  PERIODS.forEach((p, r) => {
+    const y = top + headH + rowH * r;
+    box(pad + 3, y + 3, leftW - 6, rowH - 6, 14, "#ffffff");
+    text(`${p}`, pad + leftW / 2, y + 42, font(800, 22), "#1f1630", "center");
+    text(PERIOD_TIMES[p], pad + leftW / 2, y + 64, font(500, 12), "#8a7f99", "center");
+
+    DAYS.forEach((_, d) => {
+      const x = pad + leftW + colW * d;
+      const s = items.find((i) => i.day_of_week === d && i.period === p);
+      box(x + 3, y + 3, colW - 6, rowH - 6, 14, "#ffffff");
+      if (!s) {
+        text("未登録", x + colW / 2, y + 30, font(600, 14), "#b5adc2", "center");
+        return;
+      }
+      box(x + 3, y + 3, 6, rowH - 6, 3, s.color);
+      text(s.title.length > 9 ? s.title.slice(0, 9) + "…" : s.title, x + 16, y + 34, font(700, 15), "#1f1630");
+      if (s.location) text(s.location.slice(0, 12), x + 16, y + 56, font(500, 12), "#8a7f99");
+    });
+  });
+
+  const a = document.createElement("a");
+  a.href = canvas.toDataURL("image/png");
+  a.download = "timetable.png";
+  a.click();
+  toast.success("時間割の画像を保存しました");
 }
 
 function EditDialog({ edit, userId, onClose, onSaved, onExport }: {

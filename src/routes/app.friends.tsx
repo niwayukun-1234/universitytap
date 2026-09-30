@@ -1,253 +1,342 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CalendarDays, Check, Copy, MapPin, MessageSquare, QrCode, ScanLine, Send, UserMinus, UserPlus, Users, X } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { UserPlus, MessageCircle, Users, QrCode, Copy, Search } from "lucide-react";
-import { toast } from "sonner";
-import { QRCodeSVG } from "qrcode.react";
+import { ConnectedPill, UserAvatar } from "@/components/brand";
+import { QrScanner, extractInviteCode } from "@/components/qr-scanner";
+import { campusName, hhmm, roomLabel } from "@/lib/campus";
+import {
+  type ActiveCheckin,
+  type FriendProfile,
+  UNIVERSITY_NAMES,
+  acceptedFriendIds,
+  activeCheckins,
+  openDirectChat,
+  profilesByIds,
+} from "@/lib/friends";
 
 export const Route = createFileRoute("/app/friends")({
+  validateSearch: (s: Record<string, unknown>): { invite?: string } => ({ invite: typeof s.invite === "string" ? s.invite : undefined }),
   component: FriendsPage,
 });
 
-type FriendRow = {
-  friend_id: string;
-  profile: { id: string; full_name: string; avatar_url: string | null; faculty: string | null } | null;
-  checkin: { classrooms: { name: string } | null; memo: string | null } | null;
-};
+type Found = { id: string; full_name: string; public_id: string; university_id: string | null };
 
 function FriendsPage() {
   const { user, profile } = useAuth();
-  const [friends, setFriends] = useState<FriendRow[]>([]);
-  const [searchId, setSearchId] = useState("");
-  const [result, setResult] = useState<{ id: string; full_name: string; public_id: string } | null>(null);
-  const [groupOpen, setGroupOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
+  const { invite } = Route.useSearch();
+  const navigate = useNavigate();
+  const [friends, setFriends] = useState<FriendProfile[]>([]);
+  const [checkins, setCheckins] = useState<ActiveCheckin[]>([]);
+  const [incoming, setIncoming] = useState<FriendProfile[]>([]);
+  const [outgoing, setOutgoing] = useState<FriendProfile[]>([]);
+  const [code, setCode] = useState("");
+  const [found, setFound] = useState<Found | null>(null);
+  const [showQr, setShowQr] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
-  const inviteUrl = useMemo(() => {
-    if (!profile?.public_id) return "";
-    return `${window.location.origin}/auth?invite=${profile.public_id}`;
-  }, [profile?.public_id]);
+  const inviteUrl = useMemo(
+    () => (profile?.public_id && typeof window !== "undefined" ? `${window.location.origin}/invite/${profile.public_id}` : ""),
+    [profile?.public_id],
+  );
 
-  const load = async () => {
-    const { data } = await supabase.from("friends").select("friend_id").eq("user_id", user!.id).eq("status", "accepted");
-    const ids = (data ?? []).map((f) => f.friend_id);
-    if (ids.length === 0) { setFriends([]); return; }
-    const { data: profs } = await supabase.from("profiles").select("id, full_name, avatar_url, faculty").in("id", ids);
-    const { data: cks } = await supabase.from("checkins").select("user_id, memo, classrooms(name)").in("user_id", ids).eq("is_active", true);
-    setFriends(ids.map((fid) => ({
-      friend_id: fid,
-      profile: (profs as any)?.find((p: any) => p.id === fid) ?? null,
-      checkin: (cks as any)?.find((c: any) => c.user_id === fid) ?? null,
-    })));
-  };
-
-  useEffect(() => { if (user) load(); }, [user]);
-
-  const searchById = async () => {
-    const id = searchId.trim();
-    if (!/^\d{8}$/.test(id)) return toast.error("8桁の数字IDを入力してください");
-    const { data, error } = await supabase.rpc("search_user_by_public_id", { _public_id: id });
-    if (error) return toast.error(error.message);
-    const found = (data as any)?.[0];
-    if (!found) { setResult(null); return toast.error("該当ユーザーが見つかりません"); }
-    if (found.id === user!.id) { setResult(null); return toast.error("自分のIDです"); }
-    setResult({ id: found.id, full_name: found.full_name, public_id: found.public_id });
-  };
-
-  const addFriend = async (fid: string) => {
-    const { error } = await supabase.from("friends").insert([
-      { user_id: user!.id, friend_id: fid, status: "accepted" },
-      { user_id: fid, friend_id: user!.id, status: "accepted" },
+  const load = useCallback(async () => {
+    if (!user) return;
+    const [ids, inc, out] = await Promise.all([
+      acceptedFriendIds(user.id),
+      supabase.from("friends").select("user_id").eq("friend_id", user.id).eq("status", "pending"),
+      supabase.from("friends").select("friend_id").eq("user_id", user.id).eq("status", "pending"),
     ]);
-    if (error) return toast.error(error.message);
-    toast.success("フレンドに追加しました");
-    setSearchId(""); setResult(null); setAddOpen(false);
+    const incIds = (inc.data ?? []).map((r) => r.user_id).filter((id) => !ids.includes(id));
+    const outIds = (out.data ?? []).map((r) => r.friend_id);
+    const [profs, cks] = await Promise.all([profilesByIds([...ids, ...incIds, ...outIds]), activeCheckins(ids)]);
+    const pick = (list: string[]) => list.map((id) => profs.find((p) => p.id === id)).filter(Boolean) as FriendProfile[];
+    setFriends(pick(ids));
+    setIncoming(pick(incIds));
+    setOutgoing(pick(outIds));
+    setCheckins(cks);
+  }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const search = useCallback(
+    async (raw: string) => {
+      const id = raw.trim();
+      if (!/^[0-9A-Za-z]{6,12}$/.test(id)) return toast.error("フレンドコードを正しく入力してください");
+      const { data, error } = await supabase.rpc("search_user_by_public_id", { _public_id: id });
+      if (error) return toast.error(error.message);
+      const hit = (data as Found[] | null)?.[0];
+      if (!hit) {
+        setFound(null);
+        return toast.error("該当するユーザーが見つかりません");
+      }
+      if (hit.id === user!.id) {
+        setFound(null);
+        return toast.error("自分のフレンドコードです");
+      }
+      setFound(hit);
+    },
+    [user],
+  );
+
+  // 招待リンク（/invite/xxxx）から来たらコードを入れて検索
+  useEffect(() => {
+    if (!invite || !user) return;
+    setCode(invite);
+    search(invite);
+    navigate({ to: "/app/friends", search: { invite: undefined }, replace: true });
+  }, [invite, user, search, navigate]);
+
+  const sendRequest = async (target: Found) => {
+    if (friends.some((f) => f.id === target.id)) return toast("すでにフレンドです");
+    // 相手から申請が届いていれば、そのまま承認する
+    if (incoming.some((p) => p.id === target.id)) return accept(target.id);
+    const { error } = await supabase.from("friends").insert({ user_id: user!.id, friend_id: target.id, status: "pending" });
+    if (error) return toast.error(error.code === "23505" ? "すでに申請済みです" : error.message);
+    toast.success(`${target.full_name}さんにフレンド申請を送りました`);
+    setCode("");
+    setFound(null);
     load();
   };
 
-  const copyInvite = () => {
-    navigator.clipboard.writeText(inviteUrl);
-    toast.success("招待リンクをコピーしました");
+  const accept = async (fromId: string) => {
+    const { error } = await supabase.from("friends").update({ status: "accepted" }).eq("user_id", fromId).eq("friend_id", user!.id);
+    if (error) return toast.error(error.message);
+    const { error: e2 } = await supabase
+      .from("friends")
+      .upsert({ user_id: user!.id, friend_id: fromId, status: "accepted" }, { onConflict: "user_id,friend_id" });
+    if (e2) return toast.error(e2.message);
+    toast.success("フレンドになりました");
+    setFound(null);
+    setCode("");
+    load();
   };
-  const copyId = () => {
-    if (!profile?.public_id) return;
-    navigator.clipboard.writeText(profile.public_id);
-    toast.success("IDをコピーしました");
+
+  const decline = async (fromId: string) => {
+    const { error } = await supabase.from("friends").delete().eq("user_id", fromId).eq("friend_id", user!.id);
+    if (error) return toast.error(error.message);
+    load();
+  };
+
+  const cancel = async (toId: string) => {
+    const { error } = await supabase.from("friends").delete().eq("user_id", user!.id).eq("friend_id", toId);
+    if (error) return toast.error(error.message);
+    load();
+  };
+
+  const unfriend = async (f: FriendProfile) => {
+    if (!confirm(`${f.full_name}さんとのフレンドを解除しますか？`)) return;
+    await supabase.from("friends").delete().eq("user_id", user!.id).eq("friend_id", f.id);
+    await supabase.from("friends").delete().eq("user_id", f.id).eq("friend_id", user!.id);
+    toast.success("フレンドを解除しました");
+    load();
+  };
+
+  const chat = async (f: FriendProfile) => {
+    const id = await openDirectChat(user!.id, f);
+    if (!id) return toast.error("チャットを開けませんでした");
+    navigate({ to: "/app/chat/$id", params: { id } });
+  };
+
+  const copy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success(`${label}をコピーしました`),
+      () => toast.error("コピーできませんでした"),
+    );
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><QrCode className="h-5 w-5 text-primary" />マイID・招待</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-accent/40">
-            <div>
-              <div className="text-xs text-muted-foreground">あなたの8桁ID</div>
-              <div className="text-2xl font-bold tracking-wider text-primary">{profile?.public_id || "----"}</div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={copyId}><Copy className="h-4 w-4 mr-1" />ID</Button>
-              <Button size="sm" variant="outline" onClick={copyInvite}><Copy className="h-4 w-4 mr-1" />リンク</Button>
-            </div>
-          </div>
-          {profile?.public_id && (
-            <div className="flex justify-center p-3 bg-white rounded-lg border">
-              <QRCodeSVG value={inviteUrl} size={140} />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="space-y-5">
+      <div className="flex items-center gap-4 border-b border-border/70 pb-4">
+        <UserAvatar src={profile?.avatar_url} name={profile?.full_name} className="h-16 w-16" />
+        <div className="min-w-0">
+          <div className="truncate text-2xl font-extrabold">{profile?.full_name || "未設定"}</div>
+          <div className="text-lg text-muted-foreground">{[profile?.faculty, profile?.department].filter(Boolean).join(" ") || "学部未設定"}</div>
+        </div>
+      </div>
+      <div className="flex justify-center">
+        <ConnectedPill />
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" />フレンド</span>
-            <div className="flex gap-2">
-              <CreateGroupDialog friends={friends} open={groupOpen} setOpen={setGroupOpen} />
-              <Dialog open={addOpen} onOpenChange={setAddOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline"><UserPlus className="h-4 w-4 mr-1" />追加</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>IDでフレンドを追加</DialogTitle></DialogHeader>
-                  <p className="text-xs text-muted-foreground">相手の8桁IDを入力してください。氏名検索は廃止されました。</p>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="例: 12345678"
-                      value={searchId}
-                      maxLength={8}
-                      inputMode="numeric"
-                      onChange={(e) => setSearchId(e.target.value.replace(/\D/g, ""))}
-                      onKeyDown={(e) => e.key === "Enter" && searchById()}
-                    />
-                    <Button onClick={searchById}><Search className="h-4 w-4" /></Button>
-                  </div>
-                  {result && (
-                    <div className="flex items-center justify-between p-3 border rounded-md">
-                      <div>
-                        <div className="font-semibold">{result.full_name}</div>
-                        <div className="text-xs text-muted-foreground">ID: {result.public_id}</div>
-                      </div>
-                      <Button size="sm" onClick={() => addFriend(result.id)}>追加</Button>
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
+      <section className="ut-card">
+        <h2 className="ut-card-title text-xl">
+          <QrCode className="h-7 w-7 text-primary" />
+          マイID・招待
+        </h2>
+        <div className="mt-4 rounded-3xl bg-brand-soft p-5">
+          <div className="text-lg text-muted-foreground">あなたのID</div>
+          <div className="mt-1 break-all text-4xl font-extrabold tracking-wide text-primary">{profile?.public_id || "--------"}</div>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <SoftButton icon={Copy} label="ID" onClick={() => profile?.public_id && copy(profile.public_id, "ID")} />
+            <SoftButton icon={Copy} label="リンク" onClick={() => inviteUrl && copy(inviteUrl, "招待リンク")} />
+            <SoftButton icon={QrCode} label="QR" onClick={() => setShowQr((v) => !v)} />
+            <SoftButton icon={ScanLine} label="読取" onClick={() => setScanning(true)} />
+          </div>
+        </div>
+        {showQr && inviteUrl && (
+          <div className="mt-4 flex justify-center rounded-3xl border border-border bg-white p-6">
+            <QRCodeSVG value={inviteUrl} size={220} />
+          </div>
+        )}
+      </section>
+
+      <section className="ut-card">
+        <h2 className="ut-card-title text-xl">
+          <UserPlus className="h-7 w-7 text-primary" />
+          フレンド申請
+        </h2>
+        <label className="mt-4 block">
+          <span className="ut-eyebrow">フレンドコードで検索</span>
+          <input
+            className="ut-input mt-2 text-lg font-bold tracking-wide"
+            placeholder="例: 5788212A"
+            value={code}
+            maxLength={12}
+            autoCapitalize="characters"
+            onChange={(e) => {
+              setCode(e.target.value.replace(/[^0-9A-Za-z]/g, ""));
+              setFound(null);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && search(code)}
+          />
+        </label>
+        {found ? (
+          <div className="mt-3 flex items-center gap-3 rounded-2xl border border-border p-3">
+            <UserAvatar name={found.full_name} className="h-11 w-11" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-bold">{found.full_name}</div>
+              <div className="text-sm text-muted-foreground">{UNIVERSITY_NAMES[found.university_id ?? ""] ?? ""}</div>
             </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {friends.length === 0 ? (
-            <p className="text-sm text-muted-foreground">フレンドはまだいません。右上の「追加」から検索しましょう。</p>
-          ) : (
-            <div className="space-y-2">
-              {friends.map((f) => (
-                <div key={f.friend_id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50">
-                  <Link to="/app/friend/$id" params={{ id: f.friend_id }} className="flex items-center gap-3 flex-1">
-                    <Avatar>
-                      {f.profile?.avatar_url && <AvatarImage src={f.profile.avatar_url} />}
-                      <AvatarFallback className="bg-primary text-primary-foreground">{f.profile?.full_name.slice(0, 1)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-semibold">{f.profile?.full_name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {f.checkin?.classrooms?.name ? `📍 ${f.checkin.classrooms.name}` : "現在地不明"}
-                      </div>
+            <button type="button" onClick={() => sendRequest(found)} className="ut-btn-primary px-4 py-2.5">
+              <Send className="h-4 w-4" />
+              申請
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => search(code)} className="ut-btn-primary mt-3 w-full py-4 text-lg">
+            <Send className="h-5 w-5" />
+            申請
+          </button>
+        )}
+
+        <h3 className="ut-eyebrow mt-6">届いた申請</h3>
+        {incoming.length === 0 ? (
+          <p className="mt-2 text-muted-foreground">届いている申請はありません</p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {incoming.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 rounded-2xl border border-border p-3">
+                <UserAvatar src={p.avatar_url} name={p.full_name} className="h-11 w-11" />
+                <span className="min-w-0 flex-1 truncate font-bold">{p.full_name}</span>
+                <button type="button" onClick={() => accept(p.id)} className="ut-btn-primary px-3 py-2" aria-label="承認">
+                  <Check className="h-4 w-4" />
+                  承認
+                </button>
+                <button type="button" onClick={() => decline(p.id)} className="ut-btn-outline px-3 py-2" aria-label="拒否">
+                  <X className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <h3 className="ut-eyebrow mt-5">送った申請</h3>
+        {outgoing.length === 0 ? (
+          <p className="mt-2 text-muted-foreground">送信中の申請はありません</p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {outgoing.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 rounded-2xl border border-border p-3">
+                <UserAvatar src={p.avatar_url} name={p.full_name} className="h-11 w-11" />
+                <span className="min-w-0 flex-1 truncate font-bold">{p.full_name}</span>
+                <button type="button" onClick={() => cancel(p.id)} className="ut-btn-outline px-3 py-2 text-sm">
+                  取り消す
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="ut-card">
+        <h2 className="ut-card-title text-xl">
+          <Users className="h-7 w-7 text-primary" />
+          フレンド
+        </h2>
+        {friends.length === 0 ? (
+          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">フレンドはまだいません。上の「フレンド申請」から追加しましょう。</p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {friends.map((f) => {
+              const ck = checkins.find((c) => c.user_id === f.id);
+              const b = ck?.classrooms?.buildings;
+              return (
+                <li key={f.id} className="rounded-3xl border border-border p-4">
+                  <Link to="/app/friend/$id" params={{ id: f.id }} className="flex items-center gap-4">
+                    <UserAvatar src={f.avatar_url} name={f.full_name} className="h-16 w-16 rounded-2xl" />
+                    <div className="min-w-0">
+                      <div className="truncate text-xl font-extrabold">{f.full_name}</div>
+                      <div className="text-muted-foreground">{UNIVERSITY_NAMES[f.university_id ?? ""] ?? ""}</div>
                     </div>
                   </Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  {ck?.classrooms ? (
+                    <div className="ut-soft mt-3 flex gap-3 rounded-2xl px-4 py-3">
+                      <MapPin className="mt-0.5 h-5 w-5 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-bold text-foreground">
+                          {campusName(b?.campus)} / {b ? `${b.name} ${roomLabel(ck.classrooms.name, b.name)}` : ck.classrooms.name}
+                        </div>
+                        <div className="text-muted-foreground">入室 {hhmm(ck.created_at)}</div>
+                        {ck.memo && <div className="mt-1 text-sm text-foreground">📝 {ck.memo}</div>}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-2xl bg-muted px-4 py-3 text-muted-foreground">現在は入室していません</p>
+                  )}
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <Link to="/app/friend/$id" params={{ id: f.id }} className="flex items-center justify-center rounded-full border border-border bg-muted py-3 text-muted-foreground" aria-label="時間割を見る">
+                      <CalendarDays className="h-5 w-5" />
+                    </Link>
+                    <button type="button" onClick={() => chat(f)} className="flex items-center justify-center rounded-full border border-border py-3 text-primary" aria-label="チャット">
+                      <MessageSquare className="h-5 w-5" />
+                    </button>
+                    <button type="button" onClick={() => unfriend(f)} className="flex items-center justify-center rounded-full border border-red-200 bg-red-50 py-3 text-red-700" aria-label="フレンド解除">
+                      <UserMinus className="h-5 w-5" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" />チャットグループ</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <GroupList />
-        </CardContent>
-      </Card>
+      {scanning && (
+        <QrScanner
+          onClose={() => setScanning(false)}
+          onResult={(text) => {
+            setScanning(false);
+            const c = extractInviteCode(text);
+            if (!c) return toast.error("UniversityTap の招待QRではありません");
+            setCode(c);
+            search(c);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function CreateGroupDialog({ friends, open, setOpen }: { friends: FriendRow[]; open: boolean; setOpen: (b: boolean) => void }) {
-  const { user } = useAuth();
-  const [name, setName] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
-
-  const create = async () => {
-    if (!name.trim()) return toast.error("グループ名を入力してください");
-    const { data: g, error } = await supabase.from("chat_groups").insert({ name, created_by: user!.id, is_direct: false }).select().single();
-    if (error || !g) return toast.error(error?.message || "失敗");
-    const members = [user!.id, ...selected].map((uid) => ({ group_id: g.id, user_id: uid }));
-    await supabase.from("group_members").insert(members);
-    toast.success("グループを作成しました");
-    setOpen(false); setName(""); setSelected([]);
-  };
-
+function SoftButton({ icon: Icon, label, onClick }: { icon: typeof Copy; label: string; onClick: () => void }) {
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm"><MessageCircle className="h-4 w-4 mr-1" />グループ</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>新しいグループ</DialogTitle></DialogHeader>
-        <Input placeholder="グループ名" value={name} onChange={(e) => setName(e.target.value)} />
-        <div className="space-y-2 max-h-60 overflow-auto">
-          <p className="text-sm font-medium">フレンドを追加</p>
-          {friends.map((f) => (
-            <label key={f.friend_id} className="flex items-center gap-2 p-2 border rounded cursor-pointer">
-              <input type="checkbox" checked={selected.includes(f.friend_id)} onChange={(e) => {
-                setSelected((s) => e.target.checked ? [...s, f.friend_id] : s.filter((x) => x !== f.friend_id));
-              }} />
-              <span>{f.profile?.full_name}</span>
-            </label>
-          ))}
-          {friends.length === 0 && <p className="text-sm text-muted-foreground">フレンドを追加してからグループを作成できます</p>}
-        </div>
-        <DialogFooter>
-          <Button onClick={create}>作成</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function GroupList() {
-  const { user } = useAuth();
-  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
-
-  useEffect(() => {
-    (async () => {
-      const { data: gm } = await supabase.from("group_members").select("group_id").eq("user_id", user!.id);
-      const ids = (gm ?? []).map((g) => g.group_id);
-      if (ids.length === 0) { setGroups([]); return; }
-      const { data } = await supabase.from("chat_groups").select("id,name").in("id", ids).order("created_at", { ascending: false });
-      setGroups(data || []);
-    })();
-  }, [user]);
-
-  if (groups.length === 0) return <p className="text-sm text-muted-foreground">グループはまだありません</p>;
-  return (
-    <div className="space-y-2">
-      {groups.map((g) => (
-        <Link key={g.id} to="/app/chat/$id" params={{ id: g.id }} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50">
-          <span className="font-medium">{g.name}</span>
-          <MessageCircle className="h-4 w-4 text-muted-foreground" />
-        </Link>
-      ))}
-    </div>
+    <button type="button" onClick={onClick} className="flex items-center justify-center gap-2 rounded-2xl bg-card py-3.5 text-lg font-bold shadow-sm transition active:scale-95">
+      <Icon className="h-5 w-5" />
+      {label}
+    </button>
   );
 }

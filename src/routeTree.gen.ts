@@ -9,18 +9,59 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as InviteCodeRouteImport } from './routes/invite.$code'
 import { Route as AppTimetableRouteImport } from './routes/app.timetable'
+import { Route as AppStatsRouteImport } from './routes/app.stats'
 import { Route as AppProfileRouteImport } from './routes/app.profile'
 import { Route as AppPlacesRouteImport } from './routes/app.places'
+import { Route as AppNewsRouteImport } from './routes/app.news'
 import { Route as AppLocationRouteImport } from './routes/app.location'
 import { Route as AppFriendsRouteImport } from './routes/app.friends'
+import { Route as AppContactRouteImport } from './routes/app.contact'
+import { Route as AppChatIndexRouteImport } from './routes/app.chat.index'
 import { Route as AppFriendIdRouteImport } from './routes/app.friend.$id'
 import { Route as AppChatIdRouteImport } from './routes/app.chat.$id'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -41,9 +82,19 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const InviteCodeRoute = InviteCodeRouteImport.update({
+  id: '/invite/$code',
+  path: '/invite/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppTimetableRoute = AppTimetableRouteImport.update({
   id: '/timetable',
   path: '/timetable',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStatsRoute = AppStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProfileRoute = AppProfileRouteImport.update({
@@ -56,6 +107,11 @@ const AppPlacesRoute = AppPlacesRouteImport.update({
   path: '/places',
   getParentRoute: () => AppRoute,
 } as any)
+const AppNewsRoute = AppNewsRouteImport.update({
+  id: '/news',
+  path: '/news',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLocationRoute = AppLocationRouteImport.update({
   id: '/location',
   path: '/location',
@@ -64,6 +120,16 @@ const AppLocationRoute = AppLocationRouteImport.update({
 const AppFriendsRoute = AppFriendsRouteImport.update({
   id: '/friends',
   path: '/friends',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppContactRoute = AppContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChatIndexRoute = AppChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppFriendIdRoute = AppFriendIdRouteImport.update({
@@ -81,40 +147,73 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/app/contact': typeof AppContactRoute
   '/app/friends': typeof AppFriendsRoute
   '/app/location': typeof AppLocationRoute
+  '/app/news': typeof AppNewsRoute
   '/app/places': typeof AppPlacesRoute
   '/app/profile': typeof AppProfileRoute
+  '/app/stats': typeof AppStatsRoute
   '/app/timetable': typeof AppTimetableRoute
+  '/invite/$code': typeof InviteCodeRoute
   '/app/': typeof AppIndexRoute
   '/app/chat/$id': typeof AppChatIdRoute
   '/app/friend/$id': typeof AppFriendIdRoute
+  '/app/chat/': typeof AppChatIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/app/contact': typeof AppContactRoute
   '/app/friends': typeof AppFriendsRoute
   '/app/location': typeof AppLocationRoute
+  '/app/news': typeof AppNewsRoute
   '/app/places': typeof AppPlacesRoute
   '/app/profile': typeof AppProfileRoute
+  '/app/stats': typeof AppStatsRoute
   '/app/timetable': typeof AppTimetableRoute
+  '/invite/$code': typeof InviteCodeRoute
   '/app': typeof AppIndexRoute
   '/app/chat/$id': typeof AppChatIdRoute
   '/app/friend/$id': typeof AppFriendIdRoute
+  '/app/chat': typeof AppChatIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/app/contact': typeof AppContactRoute
   '/app/friends': typeof AppFriendsRoute
   '/app/location': typeof AppLocationRoute
+  '/app/news': typeof AppNewsRoute
   '/app/places': typeof AppPlacesRoute
   '/app/profile': typeof AppProfileRoute
+  '/app/stats': typeof AppStatsRoute
   '/app/timetable': typeof AppTimetableRoute
+  '/invite/$code': typeof InviteCodeRoute
   '/app/': typeof AppIndexRoute
   '/app/chat/$id': typeof AppChatIdRoute
   '/app/friend/$id': typeof AppFriendIdRoute
+  '/app/chat/': typeof AppChatIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -122,49 +221,131 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/forgot-password'
+    | '/login'
+    | '/privacy'
+    | '/reset-password'
+    | '/signup'
+    | '/terms'
+    | '/app/contact'
     | '/app/friends'
     | '/app/location'
+    | '/app/news'
     | '/app/places'
     | '/app/profile'
+    | '/app/stats'
     | '/app/timetable'
+    | '/invite/$code'
     | '/app/'
     | '/app/chat/$id'
     | '/app/friend/$id'
+    | '/app/chat/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
+    | '/forgot-password'
+    | '/login'
+    | '/privacy'
+    | '/reset-password'
+    | '/signup'
+    | '/terms'
+    | '/app/contact'
     | '/app/friends'
     | '/app/location'
+    | '/app/news'
     | '/app/places'
     | '/app/profile'
+    | '/app/stats'
     | '/app/timetable'
+    | '/invite/$code'
     | '/app'
     | '/app/chat/$id'
     | '/app/friend/$id'
+    | '/app/chat'
   id:
     | '__root__'
     | '/'
     | '/app'
     | '/auth'
+    | '/forgot-password'
+    | '/login'
+    | '/privacy'
+    | '/reset-password'
+    | '/signup'
+    | '/terms'
+    | '/app/contact'
     | '/app/friends'
     | '/app/location'
+    | '/app/news'
     | '/app/places'
     | '/app/profile'
+    | '/app/stats'
     | '/app/timetable'
+    | '/invite/$code'
     | '/app/'
     | '/app/chat/$id'
     | '/app/friend/$id'
+    | '/app/chat/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
+  InviteCodeRoute: typeof InviteCodeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -193,11 +374,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/invite/$code': {
+      id: '/invite/$code'
+      path: '/invite/$code'
+      fullPath: '/invite/$code'
+      preLoaderRoute: typeof InviteCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/timetable': {
       id: '/app/timetable'
       path: '/timetable'
       fullPath: '/app/timetable'
       preLoaderRoute: typeof AppTimetableRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/stats': {
+      id: '/app/stats'
+      path: '/stats'
+      fullPath: '/app/stats'
+      preLoaderRoute: typeof AppStatsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/profile': {
@@ -214,6 +409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlacesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/news': {
+      id: '/app/news'
+      path: '/news'
+      fullPath: '/app/news'
+      preLoaderRoute: typeof AppNewsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/location': {
       id: '/app/location'
       path: '/location'
@@ -226,6 +428,20 @@ declare module '@tanstack/react-router' {
       path: '/friends'
       fullPath: '/app/friends'
       preLoaderRoute: typeof AppFriendsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/contact': {
+      id: '/app/contact'
+      path: '/contact'
+      fullPath: '/app/contact'
+      preLoaderRoute: typeof AppContactRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/chat/': {
+      id: '/app/chat/'
+      path: '/chat'
+      fullPath: '/app/chat/'
+      preLoaderRoute: typeof AppChatIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/friend/$id': {
@@ -246,25 +462,33 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppContactRoute: typeof AppContactRoute
   AppFriendsRoute: typeof AppFriendsRoute
   AppLocationRoute: typeof AppLocationRoute
+  AppNewsRoute: typeof AppNewsRoute
   AppPlacesRoute: typeof AppPlacesRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppStatsRoute: typeof AppStatsRoute
   AppTimetableRoute: typeof AppTimetableRoute
   AppIndexRoute: typeof AppIndexRoute
   AppChatIdRoute: typeof AppChatIdRoute
   AppFriendIdRoute: typeof AppFriendIdRoute
+  AppChatIndexRoute: typeof AppChatIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppContactRoute: AppContactRoute,
   AppFriendsRoute: AppFriendsRoute,
   AppLocationRoute: AppLocationRoute,
+  AppNewsRoute: AppNewsRoute,
   AppPlacesRoute: AppPlacesRoute,
   AppProfileRoute: AppProfileRoute,
+  AppStatsRoute: AppStatsRoute,
   AppTimetableRoute: AppTimetableRoute,
   AppIndexRoute: AppIndexRoute,
   AppChatIdRoute: AppChatIdRoute,
   AppFriendIdRoute: AppFriendIdRoute,
+  AppChatIndexRoute: AppChatIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -273,6 +497,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
+  InviteCodeRoute: InviteCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
