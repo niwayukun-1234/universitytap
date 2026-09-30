@@ -23,7 +23,7 @@ export type Database = {
         }
         Insert: {
           campus?: string
-          id: string
+          id?: string
           name: string
           university_id: string
         }
