@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { UserAvatar } from "@/components/brand";
 import { hhmm } from "@/lib/campus";
 import { markRead } from "@/lib/unread";
+import { DEMO_FRIENDS, addDemoMessage, demoGroup, demoMessages, demoReply, isDemoId } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/chat/$id")({
@@ -34,8 +35,20 @@ function ChatPage() {
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const demo = isDemoId(id);
+  const idRef = useRef(id);
+  idRef.current = id;
 
   useEffect(() => {
+    // デモの会話（ゲスト用）はデータベースを使わない
+    if (demo) {
+      const g = demoGroup(id);
+      setMsgs(user ? demoMessages(id, user.id) : []);
+      setMembers(Object.fromEntries(DEMO_FRIENDS.map((f) => [f.id, f])));
+      setIsDirect(!!g?.is_direct);
+      setTitle(g?.name ?? "チャット");
+      return;
+    }
     (async () => {
       const [g, m, mem] = await Promise.all([
         supabase.from("chat_groups").select("name, is_direct").eq("id", id).maybeSingle(),
@@ -55,9 +68,10 @@ function ChatPage() {
       const other = ids.find((u) => u !== user?.id);
       setTitle(g.data?.is_direct && other && map[other] ? map[other].full_name : (g.data?.name ?? "チャット"));
     })();
-  }, [id, user?.id]);
+  }, [id, user?.id, demo]);
 
   useEffect(() => {
+    if (demo) return;
     const ch = supabase
       .channel(`messages:${id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `group_id=eq.${id}` }, (payload) => {
@@ -67,7 +81,7 @@ function ChatPage() {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [id]);
+  }, [id, demo]);
 
   // 表示したメッセージは既読にする
   useEffect(() => {
@@ -78,6 +92,16 @@ function ChatPage() {
   const send = async () => {
     const body = text.trim();
     if (!body || sending) return;
+    if (demo) {
+      setMsgs((prev) => [...prev, { ...addDemoMessage(id, null, body), user_id: user!.id }]);
+      setText("");
+      // 少し待ってから相手が返信する
+      setTimeout(() => {
+        const r = demoReply(id);
+        if (r && idRef.current === r.group_id) setMsgs((prev) => (prev.some((p) => p.id === r.id) ? prev : [...prev, r]));
+      }, 1500);
+      return;
+    }
     setSending(true);
     const { error } = await supabase.from("messages").insert({ group_id: id, user_id: user!.id, content: body });
     setSending(false);
@@ -86,6 +110,7 @@ function ChatPage() {
   };
 
   const sendFile = async (f: File) => {
+    if (demo) return toast("デモの会話ではファイルを送信できません");
     if (f.size > 10 * 1024 * 1024) return toast.error("10MBまでのファイルを送信できます");
     const path = `${id}/${Date.now()}-${f.name.replace(/[^\w.-]/g, "_")}`;
     const { error } = await supabase.storage.from("chat").upload(path, f);

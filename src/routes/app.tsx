@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BrandMark, BrandWordmark, UserAvatar } from "@/components/brand";
 import { UNIVERSITY_NAMES } from "@/lib/friends";
 import { myGroupIds, unreadByGroup } from "@/lib/unread";
+import { demoUnread, isGuest } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app")({
@@ -74,7 +75,7 @@ function AppHeader() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const badge = useBadgeCount(user!.id);
+  const badge = useBadgeCount(user!.id, isGuest(user));
   const install = useInstallState();
   const [notif, setNotif] = useState<NotificationPermission | "unsupported">("default");
   const location = useLocation();
@@ -198,7 +199,7 @@ function BottomNav({ pathname }: { pathname: string }) {
 }
 
 /** ハンバーガーの赤バッジ：届いたフレンド申請 + 未読メッセージ */
-function useBadgeCount(userId: string) {
+function useBadgeCount(userId: string, guest: boolean) {
   const [count, setCount] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -206,9 +207,9 @@ function useBadgeCount(userId: string) {
       supabase.from("friends").select("id", { count: "exact", head: true }).eq("friend_id", userId).eq("status", "pending"),
       myGroupIds(userId),
     ]);
-    const unread = await unreadByGroup(userId, groups);
+    const unread = { ...(await unreadByGroup(userId, groups)), ...(guest ? demoUnread(userId) : {}) };
     setCount((pending ?? 0) + Object.values(unread).reduce((a, b) => a + b, 0));
-  }, [userId]);
+  }, [userId, guest]);
 
   useEffect(() => {
     refresh();

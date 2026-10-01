@@ -4,7 +4,7 @@ import { Map, MapPin } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { UserAvatar } from "@/components/brand";
 import { campusName, hhmm, roomLabel } from "@/lib/campus";
-import { type ActiveCheckin, type FriendProfile, acceptedFriendIds, activeCheckins, profilesByIds } from "@/lib/friends";
+import { type ActiveCheckin, type FriendProfile, acceptedFriendIds, activeCheckins, profilesByIds, withDemoFriends } from "@/lib/friends";
 
 export const Route = createFileRoute("/app/places")({
   component: PlacesPage,
@@ -21,7 +21,7 @@ function PlacesPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const ids = await acceptedFriendIds(user.id);
+      const ids = withDemoFriends(user, await acceptedFriendIds(user.id));
       const [profs, cks] = await Promise.all([profilesByIds(ids), activeCheckins(ids)]);
       const groups: Record<string, RoomGroup> = {};
       for (const c of cks) {

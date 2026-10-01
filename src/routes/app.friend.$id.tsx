@@ -9,6 +9,7 @@ import { UserAvatar } from "@/components/brand";
 import { TimetableView } from "@/components/timetable-view";
 import { campusName, formatDateTime, hhmm, roomLabel } from "@/lib/campus";
 import { UNIVERSITY_NAMES, openDirectChat } from "@/lib/friends";
+import { DEMO_FRIENDS, demoCheckins, demoHistory, isDemoId } from "@/lib/demo-data";
 
 export const Route = createFileRoute("/app/friend/$id")({
   component: FriendDetail,
@@ -45,6 +46,14 @@ function FriendDetail() {
 
   useEffect(() => {
     if (!user) return;
+    // デモのフレンド（ゲスト用）はデータベースを使わない
+    if (isDemoId(id)) {
+      setProfile(DEMO_FRIENDS.find((f) => f.id === id) ?? null);
+      const now = demoCheckins([id])[0];
+      setCurrent(now ? { ...now, id: `${id}-now`, left_at: null } : null);
+      setHistory(demoHistory(id));
+      return;
+    }
     const select = "id, created_at, left_at, memo, classrooms(name, buildings(name, campus))";
     (async () => {
       const [p, c, h, fr] = await Promise.all([
@@ -64,6 +73,7 @@ function FriendDetail() {
   }, [id, user]);
 
   const updateShare = async (field: "share_location" | "share_history", value: boolean) => {
+    if (isDemoId(id)) return toast.success("公開設定を更新しました（デモ）");
     const patch = field === "share_location" ? { share_location: value } : { share_history: value };
     const { error } = await supabase.from("friends").update(patch).eq("user_id", user!.id).eq("friend_id", id);
     if (error) return toast.error(error.message);

@@ -1,4 +1,6 @@
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { DEMO_FRIENDS, demoCheckins, demoDirectChatId, isDemoId, isGuest } from "@/lib/demo-data";
 
 export type FriendProfile = {
   id: string;
@@ -26,27 +28,37 @@ export async function acceptedFriendIds(userId: string): Promise<string[]> {
   return (data ?? []).map((f) => f.friend_id);
 }
 
+/** ゲストにはデモのフレンドも加える */
+export function withDemoFriends(user: User | null, ids: string[]): string[] {
+  return isGuest(user) ? [...ids, ...DEMO_FRIENDS.map((f) => f.id)] : ids;
+}
+
 export async function profilesByIds(ids: string[]): Promise<FriendProfile[]> {
-  if (ids.length === 0) return [];
+  const demo = DEMO_FRIENDS.filter((f) => ids.includes(f.id));
+  const real = ids.filter((id) => !isDemoId(id));
+  if (real.length === 0) return demo;
   const { data } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url, faculty, department, university_id")
-    .in("id", ids);
-  return (data as FriendProfile[]) ?? [];
+    .in("id", real);
+  return [...((data as FriendProfile[]) ?? []), ...demo];
 }
 
 export async function activeCheckins(ids: string[]): Promise<ActiveCheckin[]> {
-  if (ids.length === 0) return [];
+  const demo = demoCheckins(ids);
+  const real = ids.filter((id) => !isDemoId(id));
+  if (real.length === 0) return demo;
   const { data } = await supabase
     .from("checkins")
     .select("user_id, memo, created_at, classrooms(name, buildings(name, campus))")
-    .in("user_id", ids)
+    .in("user_id", real)
     .eq("is_active", true);
-  return (data as unknown as ActiveCheckin[]) ?? [];
+  return [...((data as unknown as ActiveCheckin[]) ?? []), ...demo];
 }
 
 /** 2人の個別チャットを探し、無ければ作る */
 export async function openDirectChat(me: string, friend: { id: string; full_name: string }): Promise<string | null> {
+  if (isDemoId(friend.id)) return demoDirectChatId(friend.id);
   const { data: mine } = await supabase.from("group_members").select("group_id").eq("user_id", me);
   const myIds = (mine ?? []).map((g) => g.group_id);
   if (myIds.length) {
