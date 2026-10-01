@@ -16,7 +16,9 @@ import {
   activeCheckins,
   openDirectChat,
   profilesByIds,
+  withDemoFriends,
 } from "@/lib/friends";
+import { isDemoId } from "@/lib/demo-data";
 
 export const Route = createFileRoute("/app/friends")({
   validateSearch: (s: Record<string, unknown>): { invite?: string } => ({ invite: typeof s.invite === "string" ? s.invite : undefined }),
@@ -46,7 +48,7 @@ function FriendsPage() {
   const load = useCallback(async () => {
     if (!user) return;
     const [ids, inc, out] = await Promise.all([
-      acceptedFriendIds(user.id),
+      acceptedFriendIds(user.id).then((ids) => withDemoFriends(user, ids)),
       supabase.from("friends").select("user_id").eq("friend_id", user.id).eq("status", "pending"),
       supabase.from("friends").select("friend_id").eq("user_id", user.id).eq("status", "pending"),
     ]);
@@ -130,6 +132,7 @@ function FriendsPage() {
   };
 
   const unfriend = async (f: FriendProfile) => {
+    if (isDemoId(f.id)) return toast("デモのフレンドは解除できません");
     if (!confirm(`${f.full_name}さんとのフレンドを解除しますか？`)) return;
     await supabase.from("friends").delete().eq("user_id", user!.id).eq("friend_id", f.id);
     await supabase.from("friends").delete().eq("user_id", f.id).eq("friend_id", user!.id);

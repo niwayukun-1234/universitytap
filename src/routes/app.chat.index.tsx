@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { UserAvatar } from "@/components/brand";
-import { type FriendProfile, acceptedFriendIds, openDirectChat, profilesByIds } from "@/lib/friends";
+import { type FriendProfile, acceptedFriendIds, openDirectChat, profilesByIds, withDemoFriends } from "@/lib/friends";
+import { DEMO_FRIENDS, addDemoGroup, demoDirectChatId, demoGroups, demoLatest, demoUnread, isDemoId, isGuest } from "@/lib/demo-data";
 import { unreadByGroup } from "@/lib/unread";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +34,7 @@ function ChatListPage() {
   const load = useCallback(async () => {
     if (!user) return;
     const [friendIds, gm] = await Promise.all([
-      acceptedFriendIds(user.id),
+      acceptedFriendIds(user.id).then((ids) => withDemoFriends(user, ids)),
       supabase.from("group_members").select("group_id, chat_groups(id, name, is_direct, created_at)").eq("user_id", user.id),
     ]);
     const myGroups = ((gm.data ?? []) as unknown as { chat_groups: Group | null }[]).map((r) => r.chat_groups).filter(Boolean) as Group[];
@@ -60,11 +61,21 @@ function ChatListPage() {
       if (!prev || (latest[m.group_id]?.created_at ?? "") > (latest[prev]?.created_at ?? "")) dm[m.user_id] = m.group_id;
     }
 
+    let shown = myGroups.filter((g) => !g.is_direct);
+    let unreadCounts = counts;
+    // ゲストにはデモの会話も表示する
+    if (isGuest(user)) {
+      Object.assign(latest, demoLatest(user.id));
+      for (const f of DEMO_FRIENDS) dm[f.id] = demoDirectChatId(f.id);
+      shown = [...shown, ...demoGroups().filter((g) => !g.is_direct)];
+      unreadCounts = { ...counts, ...demoUnread(user.id) };
+    }
+
     setFriends(profs);
-    setGroups(myGroups.filter((g) => !g.is_direct).sort((a, b) => (latest[b.id]?.created_at ?? b.created_at).localeCompare(latest[a.id]?.created_at ?? a.created_at)));
+    setGroups(shown.sort((a, b) => (latest[b.id]?.created_at ?? b.created_at).localeCompare(latest[a.id]?.created_at ?? a.created_at)));
     setDmByFriend(dm);
     setLastMsg(latest);
-    setUnread(counts);
+    setUnread(unreadCounts);
   }, [user]);
 
   useEffect(() => {
@@ -82,6 +93,13 @@ function ChatListPage() {
   const createGroup = async () => {
     if (!name.trim()) return toast.error("グループ名を入力してください");
     if (selected.length === 0) return toast.error("メンバーを1人以上選んでください");
+    // デモのフレンドを含むグループはこの端末の中だけで作る
+    if (selected.some(isDemoId)) {
+      const g = addDemoGroup(name.trim(), selected);
+      setName("");
+      setSelected([]);
+      return navigate({ to: "/app/chat/$id", params: { id: g.id } });
+    }
     setCreating(true);
     const { data: g, error } = await supabase.from("chat_groups").insert({ name: name.trim(), created_by: user!.id, is_direct: false }).select().single();
     if (error || !g) {

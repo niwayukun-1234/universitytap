@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
+import { deleteDemoSchedule, demoSchedules, isDemoId, isGuest, saveDemoSchedule } from "@/lib/demo-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,12 +53,16 @@ export function TimetableView({ userId, editable, heading }: { userId: string; e
   const [items, setItems] = useState<Schedule[]>([]);
   const [edit, setEdit] = useState<{ d: number; p: number; existing?: Schedule } | null>(null);
   const [syncOpen, setSyncOpen] = useState(false);
+  const { user } = useAuth();
+  // ゲスト本人とデモのフレンドの時間割はデモデータ（データベースには保存しない）
+  const demo = isDemoId(userId) || (isGuest(user) && userId === user?.id);
 
   const load = async () => {
+    if (demo) return setItems([...demoSchedules(userId, !isDemoId(userId))]);
     const { data } = await supabase.from("schedules").select("*").eq("user_id", userId);
     setItems((data as Schedule[]) || []);
   };
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => { load(); }, [userId, demo]);
 
   const find = (d: number, p: number) => items.find((i) => i.day_of_week === d && i.period === p);
 
@@ -149,6 +155,7 @@ export function TimetableView({ userId, editable, heading }: { userId: string; e
       <EditDialog
         edit={edit}
         userId={userId}
+        demo={demo}
         onClose={() => setEdit(null)}
         onSaved={() => { load(); setEdit(null); }}
         onExport={exportToGoogle}
@@ -223,9 +230,10 @@ function exportTimetableImage(items: Schedule[]) {
   toast.success("時間割の画像を保存しました");
 }
 
-function EditDialog({ edit, userId, onClose, onSaved, onExport }: {
+function EditDialog({ edit, userId, demo, onClose, onSaved, onExport }: {
   edit: { d: number; p: number; existing?: Schedule } | null;
   userId: string;
+  demo: boolean;
   onClose: () => void;
   onSaved: () => void;
   onExport: (s: Schedule) => void;
@@ -253,6 +261,11 @@ function EditDialog({ edit, userId, onClose, onSaved, onExport }: {
   const save = async () => {
     if (!title.trim()) return toast.error("タイトルを入力してください");
     const payload = { user_id: userId, day_of_week: edit.d, period: edit.p, title, category, color, location, memo };
+    if (demo) {
+      saveDemoSchedule({ id: edit.existing?.id ?? `demo-me-${edit.d}-${edit.p}`, day_of_week: edit.d, period: edit.p, title, category, color, location, memo });
+      toast.success("保存しました（デモ）");
+      return onSaved();
+    }
     const { error } = await supabase.from("schedules").upsert(payload, { onConflict: "user_id,day_of_week,period" });
     if (error) return toast.error(error.message);
     toast.success("保存しました");
@@ -261,6 +274,11 @@ function EditDialog({ edit, userId, onClose, onSaved, onExport }: {
 
   const del = async () => {
     if (!edit.existing) return;
+    if (demo) {
+      deleteDemoSchedule(edit.existing.id);
+      toast.success("削除しました（デモ）");
+      return onSaved();
+    }
     await supabase.from("schedules").delete().eq("id", edit.existing.id);
     toast.success("削除しました");
     onSaved();
